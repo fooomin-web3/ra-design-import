@@ -31,19 +31,18 @@ header{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:bl
 .navlinks a.on{color:var(--navy);border-bottom:2.5px solid var(--cyan)}
 .navcta{margin-left:auto}
 
-.hero{background:var(--panel);padding:74px 0 84px}
-.hero .cols{display:flex;gap:48px;align-items:center;flex-wrap:wrap}
-.hero .txt{flex:1 1 440px;min-width:320px}
+.hero{position:relative;background:var(--panel);padding:88px 0 100px;min-height:580px;overflow:hidden;cursor:crosshair}
+#heroBg{position:absolute;top:0;left:0;right:0;bottom:0}
+#heroBg canvas{display:block;width:100%;height:100%}
+.hero .cols{position:relative;z-index:1;display:flex;gap:48px;align-items:center;flex-wrap:wrap;pointer-events:none}
+.hero .cols a{pointer-events:auto}
+.hero .txt{flex:1 1 440px;min-width:320px;max-width:640px}
 .eyebrow{display:inline-block;font-size:17px;font-weight:600;letter-spacing:.05em;color:#8A93A6;margin-bottom:20px}
 .eyebrow b{color:var(--cyan-ink);font-weight:800}
 h1{font-size:46px;line-height:1.36;font-weight:700;letter-spacing:.01em}
 h1 .hl{color:var(--cyan-ink)}
 .lead{color:var(--muted);font-size:16.5px;margin:22px 0 30px;max-width:34em}
 .actions{display:flex;gap:14px;flex-wrap:wrap}
-.hero .vis{flex:1 1 380px;min-width:320px}
-#heroPanel{position:relative;height:460px;border-radius:22px;overflow:hidden;background:#fff;
-  border:1px solid #E1EAF0;cursor:crosshair;touch-action:none}
-#heroPanel canvas{display:block;width:100%;height:100%}
 
 .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .p{background:#fff;padding:30px 34px}
@@ -105,9 +104,10 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
   </div>
 </header>
 
-<section class="hero">
+<section class="hero" id="hero">
+  <div id="heroBg"></div>
   <div class="wrap cols">
-    <div class="txt">
+    <div class="txt" id="heroTxt">
       <span class="eyebrow"><b>R</b>elation <b>＆</b> <b>A</b>lternative</span>
       <h1>つながり、<span class="hl">いかす</span>。<br>新しい選択肢を創る。</h1>
       <p class="lead">株式会社R&Aは、人と人、人と自然、未来と今をつなぎ、新たな可能性を切り拓く企業です。</p>
@@ -116,7 +116,6 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
         <a class="btn btn-outline" href="/about">R&Aについて</a>
       </div>
     </div>
-    <div class="vis"><div id="heroPanel"></div></div>
   </div>
 </section>
 
@@ -185,14 +184,32 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
 <script>
 (function () {
   'use strict';
-  var root = document.getElementById('heroPanel');
-  if (!root) return;
+  var root = document.getElementById('heroBg');
+  var hero = document.getElementById('hero');
+  var txtEl = document.getElementById('heroTxt');
+  if (!root || !hero) return;
   var cv = document.createElement('canvas');
   root.appendChild(cv);
   var ctx = cv.getContext('2d');
   var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   var COLS = [[32, 44, 86], [11, 82, 170], [22, 197, 216]];
-  var BG = '#F4FAFD', MAXR = 17, SPLIT_AGE = 4.2;
+  var BG = '#EEF6FB', MAXR = 17, SPLIT_AGE = 4.2;
+  var ex = null; // コピー領域の反発ゾーン（canvas座標）
+  function updateExclusion() {
+    if (!txtEl) return;
+    var t = txtEl.getBoundingClientRect(), c = cv.getBoundingClientRect(), PAD = 34;
+    ex = { x: t.left - c.left - PAD, y: t.top - c.top - PAD, w: t.width + PAD * 2, h: t.height + PAD * 2 };
+  }
+  function inEx(x, y, m) {
+    return ex && x > ex.x - m && x < ex.x + ex.w + m && y > ex.y - m && y < ex.y + ex.h + m;
+  }
+  function randPos() {
+    for (var k = 0; k < 24; k++) {
+      var x = Math.random() * W, y = Math.random() * H;
+      if (!inEx(x, y, 6)) return { x: x, y: y };
+    }
+    return { x: W - Math.random() * W * 0.3, y: Math.random() * H };
+  }
   var W = 0, H = 0, dpr = 1, ps = [], lastT = 0, runT = 0, hiddenF = false;
   var mouse = { x: 0, y: 0, active: false };
   var burstCycle = 0, spawnCycle = 0, target = 200;
@@ -208,6 +225,7 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = W * dpr; cv.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    updateExclusion();
   }
   function newP(x, y, r, ci, vx, vy) {
     return { x: x, y: y, vx: vx || ((Math.random() - .5) * .7), vy: vy || ((Math.random() - .5) * .7),
@@ -217,7 +235,7 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
     resize();
     target = Math.round(Math.min(340, Math.max(150, W * H / 700)));
     ps.length = 0;
-    for (var i = 0; i < target; i++) ps.push(newP(Math.random() * W, Math.random() * H, 1 + Math.random() * 2.4, i % 3));
+    for (var i = 0; i < target; i++) { var sp0 = randPos(); ps.push(newP(sp0.x, sp0.y, 1 + Math.random() * 2.4, i % 3)); }
   }
   function flow(x, y, t) {
     return Math.sin(x * .0075 + t * .4) + Math.cos(y * .0095 - t * .3) + Math.sin((x + y) * .0042 + t * .22) * .8;
@@ -247,6 +265,13 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
           p.vx += (mx / md) * pull + (-my / md) * pull * .35;
           p.vy += (my / md) * pull + (mx / md) * pull * .35;
         }
+      }
+      if (ex && inEx(p.x, p.y, p.r)) {
+        // コピー領域から最も近い辺へ押し出す（マウス引力より強い）
+        var dl = p.x - ex.x, dr = ex.x + ex.w - p.x, du = p.y - ex.y, db = ex.y + ex.h - p.y;
+        var mn = Math.min(dl, dr, du, db), F = 1.1;
+        if (mn === dl) p.vx -= F; else if (mn === dr) p.vx += F;
+        else if (mn === du) p.vy -= F; else p.vy += F;
       }
       p.vx *= .958; p.vy *= .958;
       var cap = 4.6 * drag + 1.1, sp2 = p.vx * p.vx + p.vy * p.vy;
@@ -355,15 +380,17 @@ footer{background:#1A2447;color:#9AA5C4;padding:40px 0}
     ps = next.concat(born);
     if (e.touches) onMove(e);
   }
-  cv.addEventListener('mousemove', onMove);
-  cv.addEventListener('mouseleave', onLeave);
-  cv.addEventListener('mousedown', onDown);
-  cv.addEventListener('touchstart', onDown, { passive: false });
-  cv.addEventListener('touchmove', onMove, { passive: false });
-  cv.addEventListener('touchend', onLeave);
+  hero.addEventListener('mousemove', onMove);
+  hero.addEventListener('mouseleave', onLeave);
+  hero.addEventListener('mousedown', onDown);
+  hero.addEventListener('touchstart', onDown, { passive: true });
+  hero.addEventListener('touchmove', onMove, { passive: true });
+  hero.addEventListener('touchend', onLeave);
   document.addEventListener('visibilitychange', function () { hiddenF = document.hidden; lastT = performance.now(); });
   window.addEventListener('resize', resize);
   build();
+  setTimeout(function () { updateExclusion(); }, 400);
+  window.addEventListener('load', updateExclusion);
   if (reduce) { for (var i = 0; i < 60; i++) step(.016); draw(); return; }
   lastT = performance.now();
   requestAnimationFrame(frame);
